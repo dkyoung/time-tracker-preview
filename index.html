@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Time Tracker</title>
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0b1220" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Time Tracker" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+  <body>
+  <div class="app">
+    <div id="updateBanner" class="update-banner" hidden>
+  <span>A new version is available.</span>
+  <button id="btnRefreshApp" class="btn primary" type="button">Refresh</button>
+</div>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-title">Time Tracker</div>
+        <div id="todayLabel" class="brand-subtitle">—</div>
+      </div>
+
+      <nav class="tabs" aria-label="App tabs">
+        <button id="tabDashboard" class="tab is-active" type="button" aria-selected="true">Dashboard</button>
+        <button id="tabLogs" class="tab" type="button" aria-selected="false">Logs</button>
+        <button id="tabSettings"
+                class="tab"
+                type="button"
+                aria-selected="false">
+          ⚙️ Settings
+        </button>
+      </nav>
+    </header>
+
+    <!-- DASHBOARD TAB -->
+    <main id="dashboardPanel" class="panel is-active" role="tabpanel">
+      <div class="panel-toolbar">
+        <button id="btnClearSession" class="btn btn-danger" type="button">Clear Current Session</button>
+      </div>
+
+      <section class="hero">
+        <div class="hero-left">
+          <div class="timer-wrap">
+            <div class="primary-session-actions action-grid action-grid--compact" aria-label="Primary session actions">
+              <button id="btnClockIn" class="btn primary" type="button">Clock In</button>
+              <button id="btnClockOut" class="btn" type="button">Clock Out</button>
+            </div>
+
+            <div class="timer-label">Running Timer</div>
+            <div id="bigTimer" class="big-timer">00:00:00</div>
+            <div id="statusText" class="status-text">Not clocked in</div>
+            <div id="activeSessionText" class="active-session-text">—</div>
+            <div id="breakStatusText" class="active-session-text">Breaks available after you clock in.</div>
+            <div id="breakSkipSummary" class="active-session-text">No skipped breaks today.</div>
+          </div>
+
+          <div class="controls action-grid action-grid--compact">
+            <button id="btnStartBreak" class="btn" type="button">Start Break</button>
+            <button id="btnEndBreak" class="btn" type="button">End Break</button>
+          </div>
+
+          <div id="breakCountdownWrap" class="break-countdown-wrap" hidden>
+            <div id="breakCountdownLabel" class="break-countdown-label">Break</div>
+            <div id="breakCountdownValue" class="break-countdown-value">00:00:00</div>
+          </div>
+
+          <div class="break-skip-controls">
+            <label for="skipBreakTarget">Skip Break</label>
+            <select id="skipBreakTarget">
+              <option value="next">Next upcoming break</option>
+              <option value="1">Break 1 (15m)</option>
+              <option value="2">Lunch (30m)</option>
+              <option value="3">Break 3 (15m)</option>
+            </select>
+            <button id="btnSkipBreak" class="btn" type="button">Skip Break</button>
+          </div>
+        </div>
+
+        <div class="hero-right">
+          <div class="format-toggle">
+            <div class="weekly-share-actions action-grid action-grid--compact">
+              <button id="btnShareWeek" type="button">Share Weekly Hours</button>
+              <button id="btnCopyWeek" type="button">📋 Copy</button>
+              <span id="shareFeedback" class="share-feedback" role="status" aria-live="polite"></span>
+            </div>
+            <button id="btnToggleFormat" type="button">View: HH:MM</button>
+          </div>
+          <div class="cards">
+            <div class="card">
+              <div class="card-title">Today (Gross)</div>
+              <div id="todayGross" class="card-value">0:00</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Today (Breaks)</div>
+              <div id="todayBreaks" class="card-value">0:00</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Today (Net)</div>
+              <div id="todayNet" class="card-value">0:00</div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">Week (Net)</div>
+              <div id="weekNet" class="card-value">0:00</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Month (Net)</div>
+              <div id="monthNet" class="card-value">0:00</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- LOGS TAB -->
+    <main id="logsPanel" class="panel" role="tabpanel">
+      <section class="logs-head">
+        <div>
+          <h2 class="h2">Session Logs</h2>
+          <div class="muted">Your saved sessions live on this device. Use Settings → Export Manual Backup to save a copy.</div>
+        </div>
+        <div class="logs-head-actions action-grid action-grid--compact">
+          <button id="btnAddManualLog" class="btn" type="button">Add Manual Log</button>
+          <button id="btnClearLogs" class="btn btn-danger" type="button">Clear Logs</button>
+        </div>
+      </section>
+
+      <section id="logsEditModeBanner" class="logs-edit-banner" hidden>
+        <strong>Edit Mode Active</strong>
+        <span>Log entries can be corrected from this screen while Edit Mode stays enabled.</span>
+      </section>
+
+      <section id="manualLogFormWrap" class="manual-form-wrap" hidden>
+        <h3 class="h3">Manual Entry</h3>
+        <form id="manualLogForm" class="manual-form">
+          <label>
+            Type
+            <select id="manualType" required>
+              <option value="work">Work session</option>
+              <option value="break_1">First break (15m)</option>
+              <option value="break_2">Lunch break (30m)</option>
+              <option value="break_3">Last break (15m)</option>
+            </select>
+          </label>
+          <label>
+            Date
+            <input id="manualDate" type="date" required />
+          </label>
+          <label>
+            Start time
+            <input id="manualStart" type="time" required />
+          </label>
+          <label>
+            End time
+            <input id="manualEnd" type="time" required />
+          </label>
+          <label class="manual-notes">
+            Notes (optional)
+            <input id="manualNotes" type="text" maxlength="500" placeholder="Add context" />
+          </label>
+          <div class="manual-meta">
+            <div>Duration: <strong id="manualDuration">00:00:00</strong></div>
+            <div id="manualHint" class="muted"></div>
+            <div id="manualError" class="error" role="alert"></div>
+          </div>
+          <div class="manual-actions action-grid action-grid--compact">
+            <button class="btn primary" type="submit">Save Manual Log</button>
+            <button id="btnCancelManual" class="btn" type="button">Cancel</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="logs-body">
+        <div class="log-table" aria-label="Log entries table">
+          <div class="log-grid-scroll">
+            <div class="log-grid-filters" role="row">
+              <div class="log-filter-spacer" aria-hidden="true"></div>
+              <div class="log-filter-clear">
+                <button id="btnClearLogFilters" class="btn" type="button">Clear Filters</button>
+              </div>
+              <div>
+                <select id="logFilterType" aria-label="Filter by session type">
+                  <option value="all">All</option>
+                  <option value="work">Work session</option>
+                  <option value="break_1">First break (15m)</option>
+                  <option value="break_2">Lunch break (30m)</option>
+                  <option value="break_3">Last break (15m)</option>
+                  <option value="audit">Break skipped</option>
+                </select>
+              </div>
+              <div>
+                <input id="logFilterDate" type="date" aria-label="Filter by start date" />
+              </div>
+              <div>
+                <select id="logFilterSource" aria-label="Filter by source">
+                  <option value="all">All</option>
+                  <option value="auto">Auto</option>
+                  <option value="manual">Manual</option>
+                </select>
+              </div>
+              <div>
+                <input id="logFilterNotes" type="text" placeholder="Search notes" aria-label="Search notes" />
+              </div>
+            </div>
+            <div class="log-grid-header" role="row">
+              <div>Start Time</div>
+              <div>Session Type</div>
+              <div>End Time</div>
+              <div>Duration</div>
+              <div>Source</div>
+              <div>Notes</div>
+            </div>
+          </div>
+        </div>
+        <div id="log" class="log"></div>
+      </section>
+    </main>
+
+    <main id="settingsPanel" class="panel" role="tabpanel">
+      <section class="settings-card">
+        <h2 class="h2">Settings</h2>
+        <div class="muted">
+          Manage display preferences and manual/auto backup data.
+        </div>
+        
+<section class="settings-section" aria-label="App information">
+  <h3 class="h3">App</h3>
+  <div class="muted">Version: <span id="appVersionLabel">—</span></div>
+</section>
+        
+        <hr class="settings-separator" />
+
+        <section class="settings-section" aria-label="Auto Backup settings">
+          <h3 class="h3">Auto Backup</h3>
+          <div class="muted">
+            Automatically saves your data to a selected file when supported by your browser.
+          </div>
+          <div class="settings-stack">
+            <div id="automaticBackupControls">
+              <label class="settings-field" for="backupModeSelect">
+                <span>Auto Backup Mode</span>
+                <select id="backupModeSelect">
+                  <option value="local_only">Default local-only</option>
+                  <option value="auto_file">Auto Backup to selected file</option>
+                </select>
+              </label>
+              <div class="muted">Auto Backup File: <span id="backupDestinationLabel">No Auto Backup file selected</span></div>
+              <div class="settings-row settings-row--actions settings-backup-actions action-grid action-grid--wide">
+                <button id="btnChooseBackupFile" class="btn" type="button">Select Auto Backup File</button>
+                <button id="btnRunBackupNow" class="btn" type="button">Run Auto Backup Now</button>
+                <button id="btnResetBackupStorage" class="btn" type="button">Reset Auto Backup</button>
+              </div>
+              <div class="muted">Last Auto Backup: <span id="lastAutoBackupLabel">Never</span></div>
+              <div class="muted">Auto Backup Status: <span id="autoBackupStatusLabel">Not supported on this browser</span></div>
+            </div>
+            <div id="automaticBackupUnsupportedMessage" class="settings-inline-note" hidden>
+              This browser does not support Auto Backup to a file. Use Manual Backup instead.
+            </div>
+          </div>
+        </section>
+
+        <hr class="settings-separator" />
+
+        <section class="settings-section" aria-label="Manual Backup settings">
+          <h3 class="h3">Manual Backup</h3>
+          <div class="muted">
+            Create or restore backups manually using a JSON file. You can save it to Files, iCloud Drive, or any cloud storage.
+          </div>
+       
+          <div class="settings-row settings-row--actions action-grid action-grid--compact">
+            <button id="btnExportBackup" class="btn" type="button">Export Manual Backup</button>
+            <button id="btnImportBackup" class="btn" type="button">Import Manual Backup</button>
+            <input id="importBackupInput" type="file" accept=".json,application/json" hidden />
+          </div>
+          <div class="muted">Last Manual Backup: <span id="lastBackupLabel">Never</span></div>
+          <div class="muted">Last Manual Import: <span id="lastImportLabel">Never</span></div>
+        </section>
+
+        <hr class="settings-separator" />
+
+        <section class="settings-section" aria-label="Log editing settings">
+          <h3 class="h3">Log Editing</h3>
+          <div class="muted">
+            When enabled, log entries in the Logs tab can be edited for corrections and notes.
+          </div>
+          <div class="settings-toggle-row">
+            <label class="switch" for="editModeToggle">
+              <input id="editModeToggle" type="checkbox" role="switch" aria-describedby="editModeState" />
+              <span class="switch-track" aria-hidden="true"></span>
+              <span>Enable Edit Mode</span>
+            </label>
+            <span id="editModeState" class="settings-state-pill">OFF</span>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="footer" aria-label="Attribution and support contact">
+      <p class="footer-line">© 2026 Domingo Rivera-Velez</p>
+      <p class="footer-line">Support: domingoriveravelez@gmail.com</p>
+    </footer>
+  </div>
+
+  <div id="skipBreakModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="skipBreakModalTitle" aria-describedby="skipBreakModalBody" aria-hidden="true" hidden>
+    <div id="skipBreakModalBackdrop" class="modal-backdrop"></div>
+    <div class="modal-card">
+      <h3 id="skipBreakModalTitle">Skip this break?</h3>
+      <p id="skipBreakModalBody">You are about to skip Break 1 - 15m for today.</p>
+      <label for="skipBreakReason">Reason for skipping</label>
+      <textarea id="skipBreakReason" rows="3" placeholder="Example: Workload was too heavy"></textarea>
+      <div id="skipBreakReasonError" class="error" aria-live="polite"></div>
+      <div class="modal-actions">
+        <button id="btnCancelSkipBreak" class="btn" type="button">Cancel</button>
+        <button id="btnConfirmSkipBreak" class="btn primary" type="button">Yes, skip break</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="logEditorModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="logEditorTitle" aria-describedby="logEditorType" aria-hidden="true" hidden>
+    <div id="logEditorBackdrop" class="modal-backdrop"></div>
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <div>
+          <h3 id="logEditorTitle">Edit Log Entry</h3>
+          <p id="logEditorType" class="modal-subtitle">—</p>
+        </div>
+        <button id="btnCloseLogEditor" class="modal-close-btn" type="button" aria-label="Close edit log entry modal">✕</button>
+      </div>
+      <form id="logEditorForm" class="manual-form modal-form">
+        <label>
+          Date
+          <input id="logEditorDate" type="date" required />
+        </label>
+        <label id="logEditorSessionTypeWrap" hidden>
+          Session type
+          <select id="logEditorSessionType">
+            <option value="break_1">First break (15m)</option>
+            <option value="break_2">Lunch break (30m)</option>
+            <option value="break_3">Last break (15m)</option>
+          </select>
+        </label>
+        <label>
+          Start time
+          <input id="logEditorStart" type="time" required />
+        </label>
+        <label id="logEditorEndWrap">
+          End time
+          <input id="logEditorEnd" type="time" required />
+        </label>
+        <label class="manual-notes">
+          Notes
+          <textarea id="logEditorNotes" rows="5" maxlength="1000" placeholder="Add notes or correction details"></textarea>
+        </label>
+        <div id="logEditorMeta" class="manual-meta modal-meta"></div>
+        <div id="logEditorError" class="error" role="alert" aria-live="assertive"></div>
+        <div class="manual-actions action-grid action-grid--compact modal-actions-inline">
+          <button id="btnSaveLogEdit" class="btn primary" type="submit">Save</button>
+          <button id="btnCancelLogEdit" class="btn" type="button">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="appToast" class="app-toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
