@@ -30,6 +30,7 @@
       <nav class="tabs" aria-label="App tabs">
         <button id="tabDashboard" class="tab is-active" type="button" aria-selected="true">Dashboard</button>
         <button id="tabLogs" class="tab" type="button" aria-selected="false">Logs</button>
+        <button id="tabWeeks" class="tab" type="button" aria-selected="false">Weeks</button>
         <button id="tabSettings"
                 class="tab"
                 type="button"
@@ -221,6 +222,22 @@
         </div>
         <div id="log" class="log"></div>
       </section>
+    </main>
+
+    <!-- WEEKS TAB -->
+    <main id="weeksPanel" class="panel" role="tabpanel">
+      <section class="weeks-head">
+        <div>
+          <h2 class="h2">Weekly Totals</h2>
+          <div class="muted">Worked-hour totals grouped by Monday-to-Sunday weeks inside the selected month.</div>
+        </div>
+        <label class="weeks-month-field" for="weeksMonthSelect">
+          <span>Month</span>
+          <input id="weeksMonthSelect" type="month" />
+        </label>
+      </section>
+
+      <section id="weeksList" class="weeks-list" aria-live="polite"></section>
     </main>
 
     <main id="settingsPanel" class="panel" role="tabpanel">
