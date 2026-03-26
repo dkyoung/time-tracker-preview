@@ -16,10 +16,14 @@ const els = {
   // tabs
   tabDashboard: document.getElementById("tabDashboard"),
   tabLogs: document.getElementById("tabLogs"),
+  tabWeeks: document.getElementById("tabWeeks"),
   tabSettings: document.getElementById("tabSettings"),
   dashboardPanel: document.getElementById("dashboardPanel"),
   logsPanel: document.getElementById("logsPanel"),
+  weeksPanel: document.getElementById("weeksPanel"),
   settingsPanel: document.getElementById("settingsPanel"),
+  weeksMonthSelect: document.getElementById("weeksMonthSelect"),
+  weeksList: document.getElementById("weeksList"),
 
   // dashboard
   bigTimer: document.getElementById("bigTimer"),
@@ -208,9 +212,11 @@ let displayMode = "time"; // "time" or "decimal"
 let editModeEnabled = loadEditMode();
 const logFilters = { type: "all", source: "all", date: "", notes: "" };
 let activeTab = "dashboard";
-const tabDirtyState = { logs: true, settings: true };
+const tabDirtyState = { logs: true, weeks: true, settings: true };
 let logsCache = null;
 let logsCacheSignature = "";
+let selectedWeeksMonth = "";
+const expandedWeeks = new Set();
 let pendingSkipBreakSequence = null;
 let skipBreakSubmitInFlight = false;
 let toastTimeoutId = null;
@@ -968,18 +974,22 @@ function setTab(name) {
   activeTab = name;
   const isDash = name === "dashboard";
   const isLogs = name === "logs";
+  const isWeeks = name === "weeks";
   const isSettings = name === "settings";
 
   els.tabDashboard?.classList.toggle("is-active", isDash);
   els.tabLogs?.classList.toggle("is-active", isLogs);
+  els.tabWeeks?.classList.toggle("is-active", isWeeks);
   els.tabSettings?.classList.toggle("is-active", isSettings);
 
   els.tabDashboard?.setAttribute("aria-selected", isDash ? "true" : "false");
   els.tabLogs?.setAttribute("aria-selected", isLogs ? "true" : "false");
+  els.tabWeeks?.setAttribute("aria-selected", isWeeks ? "true" : "false");
   els.tabSettings?.setAttribute("aria-selected", isSettings ? "true" : "false");
 
   els.dashboardPanel?.classList.toggle("is-active", isDash);
   els.logsPanel?.classList.toggle("is-active", isLogs);
+  els.weeksPanel?.classList.toggle("is-active", isWeeks);
   els.settingsPanel?.classList.toggle("is-active", isSettings);
 
   renderEditModeUI();
@@ -993,6 +1003,7 @@ function attachTabListeners() {
 
   els.tabDashboard?.addEventListener("click", () => setTab("dashboard"));
   els.tabLogs?.addEventListener("click", () => setTab("logs"));
+  els.tabWeeks?.addEventListener("click", () => setTab("weeks"));
   els.tabSettings?.addEventListener("click", () => setTab("settings"));
 
   tabListenersAttached = true;
@@ -1496,6 +1507,29 @@ els.log?.addEventListener("click", (evt) => {
   saveState(state);
   scheduleAutomaticBackup();
   renderAll();
+});
+els.weeksMonthSelect?.addEventListener("change", (evt) => {
+  const target = evt.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  selectedWeeksMonth = target.value || getCurrentMonthKey();
+  expandedWeeks.clear();
+  markWeeksDirty();
+  renderActiveTab();
+});
+els.weeksList?.addEventListener("click", (evt) => {
+  const target = evt.target;
+  if (!(target instanceof HTMLElement)) return;
+  const trigger = target.closest("[data-week-key]");
+  if (!(trigger instanceof HTMLElement)) return;
+
+  const weekKey = trigger.dataset.weekKey;
+  if (!weekKey) return;
+
+  if (expandedWeeks.has(weekKey)) expandedWeeks.delete(weekKey);
+  else expandedWeeks.add(weekKey);
+
+  markWeeksDirty();
+  renderActiveTab();
 });
 
 function renderLastBackup() {
@@ -2271,14 +2305,136 @@ function isSettingsTabActive() {
   return activeTab === "settings";
 }
 
+function isWeeksTabActive() {
+  return activeTab === "weeks";
+}
+
 function markLogsDirty() {
   tabDirtyState.logs = true;
   logsCache = null;
   logsCacheSignature = "";
 }
 
+function markWeeksDirty() {
+  tabDirtyState.weeks = true;
+}
+
 function markSettingsDirty() {
   tabDirtyState.settings = true;
+}
+
+function getCurrentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
+}
+
+function parseMonthKey(monthKey) {
+  const match = /^(\d{4})-(\d{2})$/.exec(monthKey);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex)) return null;
+  if (monthIndex < 0 || monthIndex > 11) return null;
+  return { year, monthIndex };
+}
+
+function formatMonthRangeLabel(rangeStartMs, rangeEndMs) {
+  const startDate = new Date(rangeStartMs);
+  const endDate = new Date(rangeEndMs);
+  const sameMonth = startDate.getFullYear() === endDate.getFullYear()
+    && startDate.getMonth() === endDate.getMonth();
+  const startText = startDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const endText = endDate.toLocaleDateString(undefined, sameMonth ? { day: "numeric" } : { month: "short", day: "numeric" });
+  return `${startText} – ${endText}`;
+}
+
+function getWeekBucketsForMonth(monthKey) {
+  const parsed = parseMonthKey(monthKey);
+  if (!parsed) return [];
+
+  const monthStartDate = new Date(parsed.year, parsed.monthIndex, 1);
+  const monthEndDate = new Date(parsed.year, parsed.monthIndex + 1, 0);
+  const monthStartMs = startOfDayMs(monthStartDate);
+  const monthEndMs = endOfDayMs(monthEndDate);
+
+  let cursor = startOfWeekMs(monthStartDate);
+  const buckets = [];
+  let index = 1;
+
+  while (cursor <= monthEndMs) {
+    const weekStartMs = cursor;
+    const weekEndMs = endOfDayMs(new Date(weekStartMs + (6 * 24 * 60 * 60 * 1000)));
+    const visibleStartMs = Math.max(weekStartMs, monthStartMs);
+    const visibleEndMs = Math.min(weekEndMs, monthEndMs);
+
+    if (visibleStartMs <= visibleEndMs) {
+      const days = [];
+      let dayCursor = startOfDayMs(new Date(visibleStartMs));
+      while (dayCursor <= visibleEndMs) {
+        const dayEndMs = endOfDayMs(new Date(dayCursor));
+        days.push({
+          dayMs: dayCursor,
+          dayLabel: new Date(dayCursor).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }),
+          totalMs: Math.max(0, netInRangeMs(dayCursor, dayEndMs)),
+        });
+        dayCursor = startOfDayMs(new Date(dayCursor + (24 * 60 * 60 * 1000)));
+      }
+
+      const weekTotalMs = days.reduce((sum, day) => sum + day.totalMs, 0);
+      buckets.push({
+        key: `${index}:${visibleStartMs}:${visibleEndMs}`,
+        index,
+        rangeLabel: formatMonthRangeLabel(visibleStartMs, visibleEndMs),
+        totalMinutes: minutesFromMs(weekTotalMs),
+        days,
+      });
+      index += 1;
+    }
+
+    cursor = startOfDayMs(new Date(weekStartMs + (7 * 24 * 60 * 60 * 1000)));
+  }
+
+  return buckets;
+}
+
+function renderWeeks() {
+  if (!els.weeksList) return;
+
+  const monthKey = selectedWeeksMonth || getCurrentMonthKey();
+  const buckets = getWeekBucketsForMonth(monthKey);
+
+  if (buckets.length === 0) {
+    els.weeksList.innerHTML = `<div class="muted">No weeks found for this month.</div>`;
+    return;
+  }
+
+  const html = buckets.map((bucket) => {
+    const expanded = expandedWeeks.has(bucket.key);
+    const dailyHtml = bucket.days.map((day) => `
+      <div class="week-day-row">
+        <span>${escapeHtml(day.dayLabel)}</span>
+        <strong>${escapeHtml(formatMinutes(minutesFromMs(day.totalMs)))}</strong>
+      </div>
+    `).join("");
+
+    return `
+      <article class="week-card">
+        <button class="week-summary" type="button" data-week-key="${escapeHtml(bucket.key)}" aria-expanded="${expanded ? "true" : "false"}">
+          <div>
+            <div class="week-title">Week ${bucket.index}</div>
+            <div class="week-range">${escapeHtml(bucket.rangeLabel)}</div>
+          </div>
+          <div class="week-total">${escapeHtml(formatMinutes(bucket.totalMinutes))}</div>
+        </button>
+        <div class="week-details"${expanded ? "" : " hidden"}>
+          ${dailyHtml}
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  els.weeksList.innerHTML = html;
 }
 
 function refreshLiveTimeUI() {
@@ -2298,6 +2454,11 @@ function renderActiveTab() {
     tabDirtyState.logs = false;
   }
 
+  if (isWeeksTabActive() && tabDirtyState.weeks) {
+    renderWeeks();
+    tabDirtyState.weeks = false;
+  }
+
   if (isSettingsTabActive() && tabDirtyState.settings) {
     renderAutomaticBackupSettings();
     renderLastAutomaticBackup();
@@ -2312,6 +2473,7 @@ function updateUI() {
   refreshSummaryUI();
   renderEditModeUI();
   markLogsDirty();
+  markWeeksDirty();
   markSettingsDirty();
   renderActiveTab();
 }
@@ -2336,6 +2498,7 @@ function renderAll() {
   refreshSummaryUI();
   refreshLiveTimeUI();
   renderEditModeUI();
+  markWeeksDirty();
   renderActiveTab();
 
   if (els.appVersionLabel) {
@@ -2364,6 +2527,10 @@ function initializeApp() {
   }
 
   attachTabListeners();
+  selectedWeeksMonth = getCurrentMonthKey();
+  if (els.weeksMonthSelect) {
+    els.weeksMonthSelect.value = selectedWeeksMonth;
+  }
   initializeDefaultLogDateFilter();
   activeTab = "dashboard";
   console.debug("[perf] app init start");

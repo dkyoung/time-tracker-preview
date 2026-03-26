@@ -1,4 +1,4 @@
-export const APP_VERSION = "2026.03.25.2";
+export const APP_VERSION = "2026.03.25.3";
 export const STORAGE_KEY = "tt_v1";
 export const LAST_BACKUP_KEY = "tt_last_backup_ts";
 export const LAST_IMPORT_KEY = "tt_last_import_ts";
